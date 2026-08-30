@@ -1,0 +1,27 @@
+{
+  "name": "agentos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production AI agent & workflow automation platform — monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @agentos/api",
+    "dev:web": "npm run dev -w @agentos/web",
+    "dev": "npm run dev:api & npm run dev:web",
+    "build": "npm run build -w @agentos/web",
+    "typecheck": "npm run typecheck -w @agentos/core && npm run typecheck -w @agentos/db && npm run typecheck -w @agentos/policy-engine && npm run typecheck -w @agentos/llm-gateway && npm run typecheck -w @agentos/tool-runtime && npm run typecheck -w @agentos/runtime && npm run typecheck -w @agentos/api",
+    "seed": "npm run seed -w @agentos/api",
+    "test": "npm run test -w @agentos/runtime"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
