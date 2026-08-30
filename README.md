@@ -2,6 +2,11 @@
 
 **Production AI Agent & Workflow Automation Platform**
 
+AgentOS is a production-grade platform for creating and operating AI agents that
+can reason about tasks, access organizational context, invoke tools, execute
+workflows, interact with external systems, request human approval, recover from
+failures, and provide complete execution traces.
+
 Build, deploy, observe, evaluate, and govern autonomous AI agents that safely do
 real work — through controlled access to tools, data, and external systems.
 
