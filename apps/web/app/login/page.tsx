@@ -8,7 +8,7 @@ import { setSession, type SessionUser } from "@/lib/auth";
 
 export default function Login() {
   const router = useRouter();
-  const [email, setEmail] = useState("demo@agentos.dev");
+  const [email, setEmail] = useState("admin@agentos.dev");
   const [password, setPassword] = useState("demo1234");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -80,7 +80,7 @@ export default function Login() {
           </Link>
         </p>
         <div className="mt-6 rounded-lg border border-base-800 bg-base-900/50 p-3 text-center text-xs text-slate-500">
-          Demo credentials — <span className="mono text-slate-400">demo@agentos.dev / demo1234</span>
+          Demo credentials — <span className="mono text-slate-400">admin@agentos.dev / demo1234</span>
         </div>
       </div>
     </main>
