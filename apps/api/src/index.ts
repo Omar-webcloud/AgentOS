@@ -17,7 +17,10 @@ seed(db);
 
 const cp = new ControlPlane(db);
 const repo = new RuntimeRepository(db);
-const gateway = createGateway({ openaiApiKey: process.env.OPENAI_API_KEY });
+const gateway = createGateway({
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiBaseUrl: process.env.OPENAI_BASE_URL,
+});
 const toolRuntime = new ToolRuntime();
 
 const runtime = new AgentRuntime({

@@ -179,14 +179,14 @@ export class OpenAIProvider implements LLMProvider {
   }
 }
 
-export function createGateway(config: { openaiApiKey?: string } = {}): {
+export function createGateway(config: { openaiApiKey?: string; openaiBaseUrl?: string } = {}): {
   providers: LLMProvider[];
   complete(req: LLMRequest): Promise<LLMResponse>;
 } {
   const mock = new MockProvider();
   const providers: LLMProvider[] = [mock];
   if (config.openaiApiKey) {
-    providers.push(new OpenAIProvider(config.openaiApiKey));
+    providers.push(new OpenAIProvider(config.openaiApiKey, config.openaiBaseUrl));
   }
   return {
     providers,
