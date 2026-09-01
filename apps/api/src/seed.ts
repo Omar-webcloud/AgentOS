@@ -27,7 +27,7 @@ export function seed(db: Db): void {
   const existing = cp.getUserByEmail(DEMO_EMAIL);
   if (existing) return; // already seeded
 
-  const org = cp.createOrganization("Acme Corp");
+  const org = cp.createOrganization("Acme Corp V2");
   cp.createUser({
     organizationId: org.id,
     email: DEMO_EMAIL,
