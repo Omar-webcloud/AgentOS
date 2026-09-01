@@ -18,7 +18,7 @@ const RETRY: RetryPolicy = {
   retryable: ["TimeoutError", "NetworkError", "HTTPError"],
 };
 
-export const DEMO_EMAIL = "demo@agentos.dev";
+export const DEMO_EMAIL = "admin@agentos.dev";
 export const DEMO_PASSWORD = "demo1234";
 
 export function seed(db: Db): void {
