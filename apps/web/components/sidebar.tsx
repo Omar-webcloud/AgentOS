@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { getUser } from "@/lib/auth";
+import { usePathname, useRouter } from "next/navigation";
+import { getUser, clearSession } from "@/lib/auth";
 
 const NAV: { group: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -44,6 +44,7 @@ const NAV: { group: string; items: { href: string; label: string; icon: string }
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const user = getUser();
 
   return (
@@ -104,6 +105,16 @@ export function Sidebar() {
               <span className="truncate text-xs font-medium text-slate-200">{user.name}</span>
               <span className="truncate text-[10px] text-slate-500">{user.email}</span>
             </div>
+            <button
+              onClick={() => {
+                clearSession();
+                router.push("/login");
+              }}
+              className="ml-auto text-xs text-slate-400 hover:text-slate-200"
+              title="Log out"
+            >
+              ⎋
+            </button>
           </div>
         ) : (
           <Link href="/login" className="text-xs text-slate-400 hover:text-slate-200">

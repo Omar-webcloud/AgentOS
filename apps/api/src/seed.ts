@@ -37,11 +37,15 @@ export function seed(db: Db): void {
   });
   const project = cp.createProject({ organizationId: org.id, name: "Engineering", environment: "production" });
 
-  // --- tools --------------------------------------------------------------
+    seedOrganization(cp, db, org.id, project.id);
+}
+
+export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projectId: string): void {
+// --- tools --------------------------------------------------------------
 
   const tools: Record<string, ToolDefinition> = {
     github_get_pr: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "github.get_pull_request",
       description: "Fetch a pull request's metadata from GitHub.",
       inputSchema: {
@@ -59,7 +63,7 @@ export function seed(db: Db): void {
       implementation: { kind: "mock", behavior: "echo" },
     }),
     github_get_diff: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "github.get_diff",
       description: "Fetch the code diff for a pull request.",
       inputSchema: {
@@ -77,7 +81,7 @@ export function seed(db: Db): void {
       implementation: { kind: "mock", behavior: "echo" },
     }),
     github_create_comment: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "github.create_comment",
       description: "Post a review comment on a pull request.",
       inputSchema: {
@@ -96,7 +100,7 @@ export function seed(db: Db): void {
       implementation: { kind: "mock", behavior: "echo" },
     }),
     github_merge_pr: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "github.merge_pr",
       description: "Merge a pull request. High-risk write.",
       inputSchema: {
@@ -114,7 +118,7 @@ export function seed(db: Db): void {
       implementation: { kind: "mock", behavior: "echo" },
     }),
     stripe_refund: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "stripe.refund",
       description: "Issue a refund to a customer. Destructive.",
       inputSchema: {
@@ -133,7 +137,7 @@ export function seed(db: Db): void {
       implementation: { kind: "mock", behavior: "require_approval" },
     }),
     database_query: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "database.query",
       description: "Run a read-only SQL query.",
       inputSchema: {
@@ -148,7 +152,7 @@ export function seed(db: Db): void {
       implementation: { kind: "mock", behavior: "echo" },
     }),
     database_delete: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "database.delete",
       description: "Delete rows. Destructive — blocked in production.",
       inputSchema: {
@@ -163,7 +167,7 @@ export function seed(db: Db): void {
       implementation: { kind: "mock", behavior: "require_approval" },
     }),
     calculator: cp.createTool({
-      organizationId: org.id,
+      organizationId: orgId,
       name: "calculator.evaluate",
       description: "Evaluate a safe arithmetic expression.",
       inputSchema: {
@@ -188,8 +192,8 @@ export function seed(db: Db): void {
   ];
 
   const reviewer = cp.createAgent({
-    organizationId: org.id,
-    projectId: project.id,
+    organizationId: orgId,
+    projectId: projectId,
     name: "Code Reviewer",
     description: "Reviews pull requests against engineering standards and posts findings.",
     status: "active",
@@ -224,8 +228,8 @@ export function seed(db: Db): void {
   ];
 
   const support = cp.createAgent({
-    organizationId: org.id,
-    projectId: project.id,
+    organizationId: orgId,
+    projectId: projectId,
     name: "Support Agent",
     description: "Handles customer refund requests, escalating high-value refunds to a human.",
     status: "active",
@@ -255,7 +259,7 @@ export function seed(db: Db): void {
 
   const datasetId = makeId("dataset");
   db.prepare(`INSERT INTO eval_datasets (id, organization_id, name, created_at) VALUES (?, ?, ?, ?)`)
-    .run(datasetId, org.id, "Code Reviewer Regression", nowIso());
+    .run(datasetId, orgId, "Code Reviewer Regression", nowIso());
 
   db.prepare(
     `INSERT INTO eval_cases (id, dataset_id, name, input, expected_tools, expected_output_contains, constraints) VALUES (?, ?, ?, ?, ?, ?, ?)`,

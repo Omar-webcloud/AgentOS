@@ -7,6 +7,7 @@ import type { RuntimeRepository } from "@agentos/runtime";
 import type { AgentRuntime } from "@agentos/runtime";
 import { requireAuth, hashPassword, verifyPassword, issueToken } from "./auth.js";
 import { defaultRuntimeConfig } from "./control-plane.js";
+import { seedOrganization } from "./seed.js";
 
 /**
  * HTTP routes (PRD §70). Base structure `/api/v1`.
@@ -48,6 +49,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       return reply.code(409).send({ error: "email already registered" });
     }
     const org = cp.createOrganization(body.name ? `${body.name}'s Workspace` : "My Workspace");
+    const project = cp.createProject({ organizationId: org.id, name: "Engineering", environment: "production" });
     const user = cp.createUser({
       organizationId: org.id,
       email: body.email,
@@ -55,6 +57,10 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       role: "owner",
       passwordHash: hashPassword(body.password),
     });
+    
+    // Seed default models, tools, and datasets for the new organization
+    seedOrganization(cp, deps.db, org.id, project.id);
+    
     return { token: issueToken(user.id), user: publicUser(user) };
   });
 

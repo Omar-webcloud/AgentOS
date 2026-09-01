@@ -32,7 +32,7 @@ export class ControlPlane {
     const org: Organization = {
       id: makeId("org"),
       name,
-      slug: slugify(name) || "org",
+      slug: `${slugify(name) || "org"}-${makeId("").replace("_", "").slice(0, 6)}`,
       createdAt: nowIso(),
     };
     this.db
