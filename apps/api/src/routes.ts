@@ -23,6 +23,8 @@ export interface RouteDeps {
   repo: RuntimeRepository;
   runtime: AgentRuntime;
   environment: EnvironmentName;
+  /** Names of the LLM providers the gateway was started with. */
+  providers?: string[];
 }
 
 export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
@@ -36,7 +38,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
   // -- health --------------------------------------------------------------
 
-  app.get("/api/health", async () => ({ ok: true, service: "agentos-api", environment: deps.environment }));
+  app.get("/api/health", async () => ({
+    ok: true,
+    service: "agentos-api",
+    environment: deps.environment,
+    // Which LLM providers the gateway came up with. `mock` is always present;
+    // `openai` appears only when an API key (OpenAI or Hugging Face) is set,
+    // which makes "did my key actually load?" answerable without a redeploy.
+    llmProviders: deps.providers ?? [],
+  }));
 
   // -- auth ----------------------------------------------------------------
 
