@@ -37,14 +37,53 @@ export function seed(db: Db): void {
   });
   const project = cp.createProject({ organizationId: org.id, name: "Engineering", environment: "production" });
 
+  seedOrganization(cp, db, org.id, project.id);
+}
+
+/**
+ * Backfills the starter portfolio into any organization that has no agents.
+ *
+ * `seedOrganization` normally runs when an account is created. Organizations
+ * created before that existed — or on a database that was reset and rebuilt by
+ * an older build — end up with an empty agent list, and the console then shows
+ * "No agents yet" with no way to tell why. Running this at boot repairs them.
+ *
+ * Safe to call on every start: it only touches organizations with zero agents,
+ * and `seedOrganization` reuses tools/datasets that already exist.
+ *
+ * @returns the number of organizations that were seeded.
+ */
+export function backfillEmptyOrganizations(db: Db): number {
+  const cp = new ControlPlane(db);
+  const orgs = db
+    .prepare<{ id: string }>(
+      `SELECT o.id FROM organizations o
+        WHERE NOT EXISTS (SELECT 1 FROM agents a WHERE a.organization_id = o.id)
+        ORDER BY o.created_at ASC`,
+    )
+    .all();
+
+  for (const org of orgs) {
+    const project =
+      cp.listProjects(org.id)[0] ??
+      cp.createProject({ organizationId: org.id, name: "Engineering", environment: "production" });
     seedOrganization(cp, db, org.id, project.id);
+  }
+  return orgs.length;
 }
 
 export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projectId: string): void {
-// --- tools --------------------------------------------------------------
+  // --- tools --------------------------------------------------------------
+
+  // Reuse tools that already exist for this organization so re-seeding a
+  // partially populated org never creates duplicates.
+  const existing = new Map(cp.listTools(orgId).map((t) => [t.name, t]));
+  const ensureTool = (
+    def: Omit<ToolDefinition, "id" | "usage_count" | "success_count" | "createdAt">,
+  ): ToolDefinition => existing.get(def.name) ?? cp.createTool(def);
 
   const tools: Record<string, ToolDefinition> = {
-    github_get_pr: cp.createTool({
+    github_get_pr: ensureTool({
       organizationId: orgId,
       name: "github.get_pull_request",
       description: "Fetch a pull request's metadata from GitHub.",
@@ -62,7 +101,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       retryPolicy: RETRY,
       implementation: { kind: "mock", behavior: "echo" },
     }),
-    github_get_diff: cp.createTool({
+    github_get_diff: ensureTool({
       organizationId: orgId,
       name: "github.get_diff",
       description: "Fetch the code diff for a pull request.",
@@ -80,7 +119,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       retryPolicy: RETRY,
       implementation: { kind: "mock", behavior: "echo" },
     }),
-    github_create_comment: cp.createTool({
+    github_create_comment: ensureTool({
       organizationId: orgId,
       name: "github.create_comment",
       description: "Post a review comment on a pull request.",
@@ -99,7 +138,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       retryPolicy: RETRY,
       implementation: { kind: "mock", behavior: "echo" },
     }),
-    github_merge_pr: cp.createTool({
+    github_merge_pr: ensureTool({
       organizationId: orgId,
       name: "github.merge_pr",
       description: "Merge a pull request. High-risk write.",
@@ -117,7 +156,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       retryPolicy: RETRY,
       implementation: { kind: "mock", behavior: "echo" },
     }),
-    stripe_refund: cp.createTool({
+    stripe_refund: ensureTool({
       organizationId: orgId,
       name: "stripe.refund",
       description: "Issue a refund to a customer. Destructive.",
@@ -136,7 +175,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       retryPolicy: RETRY,
       implementation: { kind: "mock", behavior: "require_approval" },
     }),
-    database_query: cp.createTool({
+    database_query: ensureTool({
       organizationId: orgId,
       name: "database.query",
       description: "Run a read-only SQL query.",
@@ -151,7 +190,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       retryPolicy: RETRY,
       implementation: { kind: "mock", behavior: "echo" },
     }),
-    database_delete: cp.createTool({
+    database_delete: ensureTool({
       organizationId: orgId,
       name: "database.delete",
       description: "Delete rows. Destructive — blocked in production.",
@@ -166,7 +205,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       retryPolicy: RETRY,
       implementation: { kind: "mock", behavior: "require_approval" },
     }),
-    calculator: cp.createTool({
+    calculator: ensureTool({
       organizationId: orgId,
       name: "calculator.evaluate",
       description: "Evaluate a safe arithmetic expression.",
@@ -256,6 +295,11 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
   });
 
   // --- eval dataset -------------------------------------------------------
+
+  const existingDatasets = db
+    .prepare<{ id: string }>(`SELECT id FROM eval_datasets WHERE organization_id = ?`)
+    .all(orgId);
+  if (existingDatasets.length > 0) return; // dataset already seeded
 
   const datasetId = makeId("dataset");
   db.prepare(`INSERT INTO eval_datasets (id, organization_id, name, created_at) VALUES (?, ?, ?, ?)`)
