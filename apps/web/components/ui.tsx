@@ -70,6 +70,24 @@ export function Stat({ label, value, sub }: { label: string; value: ReactNode; s
   );
 }
 
+/**
+ * Renders a failed API request as a visible failure. Without this, every list
+ * page collapsed "the request failed" and "you have no rows yet" into the same
+ * empty grid, which is indistinguishable from a working deployment.
+ */
+export function ErrorBanner({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="mt-5 flex items-start justify-between gap-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+      <span className="min-w-0 break-words">{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="shrink-0 underline underline-offset-2 hover:text-red-200">
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function Empty({ title, body, cta }: { title: string; body: string; cta?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-base-600 py-16 text-center">

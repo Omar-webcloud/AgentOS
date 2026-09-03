@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, fmtUsd, fmtMs, timeAgo } from "@/lib/api";
-import { Badge, Card, Stat, Spinner } from "@/components/ui";
+import { fmtUsd, fmtMs, timeAgo } from "@/lib/api";
+import { useApi } from "@/lib/use-api";
+import { Badge, Card, ErrorBanner, Stat, Spinner } from "@/components/ui";
 
 interface Metrics {
   runsToday: number;
@@ -29,20 +29,26 @@ interface RunSummary {
 }
 
 export default function Dashboard() {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  const { data: metrics, error: metricsError, loading, reload } = useApi<Metrics>("/api/v1/metrics");
+  const { data: runs, error: runsError } = useApi<RunSummary[]>("/api/v1/runs");
+  const { data: agents, error: agentsError } = useApi<any[]>("/api/v1/agents");
+  const recentRuns = (runs ?? []).slice(0, 8);
 
-  useEffect(() => {
-    api<Metrics>("/api/v1/metrics").then(setMetrics).catch(() => {});
-    api<RunSummary[]>("/api/v1/runs").then((r) => setRuns(r.slice(0, 8))).catch(() => {});
-    api<any[]>("/api/v1/agents").then(setAgents).catch(() => {});
-  }, []);
-
-  if (!metrics) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-slate-500">
         <Spinner /> <span className="ml-2">Loading dashboard…</span>
+      </div>
+    );
+  }
+
+  // Never sit on the spinner forever: a failed request used to render as an
+  // endlessly "loading" dashboard.
+  if (!metrics) {
+    return (
+      <div>
+        <h1 className="text-xl font-semibold text-slate-100">Dashboard</h1>
+        <ErrorBanner message={metricsError ?? "Could not load metrics from the API"} onRetry={reload} />
       </div>
     );
   }
@@ -55,6 +61,10 @@ export default function Dashboard() {
           <p className="mt-0.5 text-sm text-slate-500">What happened, what it cost, what needs attention.</p>
         </div>
       </div>
+
+      {(runsError || agentsError) && (
+        <ErrorBanner message={runsError ?? agentsError ?? "Could not load part of the dashboard"} onRetry={reload} />
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Runs today" value={metrics.runsToday} />
@@ -95,12 +105,12 @@ export default function Dashboard() {
 
         {/* recent runs */}
         <Card title="Recent runs" className="lg:col-span-2">
-          {runs.length === 0 ? (
+          {recentRuns.length === 0 ? (
             <p className="text-sm text-slate-500">No runs yet — trigger an agent to see it here.</p>
           ) : (
             <table className="w-full text-sm">
               <tbody>
-                {runs.map((r) => (
+                {recentRuns.map((r) => (
                   <tr key={r.id} className="border-b border-base-800 last:border-0">
                     <td className="py-2">
                       <Link href={`/runs/${r.id}`} className="mono text-xs text-accent hover:underline">
@@ -126,7 +136,7 @@ export default function Dashboard() {
           <Link href="/agents" className="text-xs text-accent hover:underline">View all →</Link>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {agents.map((a) => (
+          {(agents ?? []).map((a) => (
             <Link key={a.id} href={`/agents/${a.id}`} className="rounded-xl border border-base-700 bg-base-900/70 p-4 transition-colors hover:border-accent/50">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-slate-100">{a.name}</span>

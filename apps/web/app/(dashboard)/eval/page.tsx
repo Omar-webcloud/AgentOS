@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Badge, Card, Empty, Spinner } from "@/components/ui";
+import { useApi } from "@/lib/use-api";
+import { Badge, Card, Empty, ErrorBanner, Spinner } from "@/components/ui";
 
 interface Dataset {
   id: string;
@@ -21,15 +20,11 @@ interface EvalCase {
 }
 
 export default function Evaluation() {
-  const [datasets, setDatasets] = useState<Dataset[] | null>(null);
-  const [cases, setCases] = useState<EvalCase[]>([]);
+  const { data: datasets, error: datasetsError, loading, reload } = useApi<Dataset[]>("/api/v1/eval/datasets");
+  const { data: cases, error: casesError } = useApi<EvalCase[]>("/api/v1/eval/cases");
+  const error = datasetsError ?? casesError;
 
-  useEffect(() => {
-    api<Dataset[]>("/api/v1/eval/datasets").then(setDatasets).catch(() => setDatasets([]));
-    api<EvalCase[]>("/api/v1/eval/cases").then(setCases).catch(() => setCases([]));
-  }, []);
-
-  if (datasets === null) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-slate-500">
         <Spinner /> <span className="ml-2">Loading…</span>
@@ -44,17 +39,26 @@ export default function Evaluation() {
         Datasets and test cases for measuring agent quality and regression.
       </p>
 
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+
       <div className="mt-6 space-y-6">
-        {datasets.length === 0 ? (
-          <Empty title="No datasets" body="Create a dataset to start evaluating your agents." />
+        {(datasets ?? []).length === 0 ? (
+          <Empty
+            title={error ? "Evaluation unavailable" : "No datasets"}
+            body={
+              error
+                ? "The API request failed — see the error above."
+                : "Create a dataset to start evaluating your agents."
+            }
+          />
         ) : (
-          datasets.map((d) => (
+          (datasets ?? []).map((d) => (
             <Card key={d.id} title={d.name}>
-              {cases.filter((c) => c.datasetId === d.id).length === 0 ? (
+              {(cases ?? []).filter((c) => c.datasetId === d.id).length === 0 ? (
                 <p className="text-sm text-slate-500">No test cases in this dataset.</p>
               ) : (
                 <div className="space-y-3">
-                  {cases
+                  {(cases ?? [])
                     .filter((c) => c.datasetId === d.id)
                     .map((c) => (
                       <div key={c.id} className="rounded-lg border border-base-700 bg-base-850 p-4">

@@ -25,6 +25,8 @@ export interface RouteDeps {
   environment: EnvironmentName;
   /** Names of the LLM providers the gateway was started with. */
   providers?: string[];
+  /** Resolved SQLite file (or `:memory:`), reported by /api/v1/diagnostics. */
+  databasePath?: string;
 }
 
 export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
@@ -291,6 +293,70 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     return cp.listProjects(user.organizationId);
   });
 
+  // -- diagnostics ---------------------------------------------------------
+
+  /**
+   * Answers "the console is empty — why?" without shell access to the server.
+   *
+   * Reports what this deployment can see: which environment variables are
+   * present (values are never returned for secrets), which LLM providers the
+   * gateway registered, where the database file lives, and how many rows the
+   * caller's organization actually has. An empty console is either "your
+   * organization has no rows" or "the console cannot reach this API", and this
+   * endpoint distinguishes them in one request.
+   */
+  app.get("/api/v1/diagnostics", async (req) => {
+    const user = requireAuth(req);
+    const count = (sql: string, param: string): number =>
+      (deps.db.prepare<{ n: number }>(sql).get(param)?.n ?? 0) as number;
+
+    return {
+      user: { id: user.id, email: user.email, role: user.role },
+      organizationId: user.organizationId,
+      counts: {
+        agents: count(`SELECT COUNT(*) AS n FROM agents WHERE organization_id = ?`, user.organizationId),
+        tools: count(`SELECT COUNT(*) AS n FROM tools WHERE organization_id = ?`, user.organizationId),
+        projects: count(`SELECT COUNT(*) AS n FROM projects WHERE organization_id = ?`, user.organizationId),
+        users: count(`SELECT COUNT(*) AS n FROM users WHERE organization_id = ?`, user.organizationId),
+        runs: count(`SELECT COUNT(*) AS n FROM runs WHERE organization_id = ?`, user.organizationId),
+      },
+      environment: deps.environment,
+      databasePath: deps.databasePath ?? "unknown",
+      llmProviders: deps.providers ?? [],
+      env: environmentReport(),
+    };
+  });
+
+  /**
+   * Backfills the starter portfolio (two agents, eight tools, one eval
+   * dataset) into the caller's organization.
+   *
+   * Normally this happens at registration and is repaired at API boot, but an
+   * organization created by an older build — or one whose seeding failed —
+   * needs a way to recover without a database reset. Guarded so it can only
+   * run on an organization that has no agents yet.
+   */
+  app.post("/api/v1/organization/seed", async (req, reply) => {
+    const user = requireAuth(req);
+    if (!hasPermission(user.id, "agent:create")) return reply.code(403).send({ error: "forbidden" });
+
+    if (cp.listAgents(user.organizationId).length > 0) {
+      return reply.code(409).send({ error: "organization already has agents — nothing to seed" });
+    }
+
+    const project =
+      cp.listProjects(user.organizationId)[0] ??
+      cp.createProject({ organizationId: user.organizationId, name: "Engineering", environment: "production" });
+
+    seedOrganization(cp, deps.db, user.organizationId, project.id);
+
+    return {
+      ok: true,
+      agents: cp.listAgents(user.organizationId).length,
+      tools: cp.listTools(user.organizationId).length,
+    };
+  });
+
   // -- eval ----------------------------------------------------------------
 
   app.get("/api/v1/eval/datasets", async (req) => {
@@ -314,6 +380,41 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       constraints: JSON.parse(r.constraints as string),
     }));
   });
+}
+
+/**
+ * Environment variables this deployment reads. Reported as `set`/`missing`
+ * (plus a length for secrets) so a misconfigured service can be diagnosed
+ * from the browser without exposing any value.
+ */
+const DIAGNOSTIC_ENV_KEYS = [
+  "PORT",
+  "HOST",
+  "ENVIRONMENT",
+  "DATABASE_PATH",
+  "SESSION_SECRET",
+  "HUGGINGFACE_API_KEY",
+  "HF_TOKEN",
+  "HUGGINGFACE_HUB_API_TOKEN",
+  "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+];
+
+const SECRET_ENV_PATTERN = /(SECRET|TOKEN|KEY|PASSWORD)$/i;
+
+function environmentReport(): Record<string, string> {
+  const report: Record<string, string> = {};
+  for (const key of DIAGNOSTIC_ENV_KEYS) {
+    const value = process.env[key];
+    if (value === undefined || value === "") {
+      report[key] = "missing";
+    } else if (SECRET_ENV_PATTERN.test(key)) {
+      report[key] = `set (${value.length} chars)`;
+    } else {
+      report[key] = value;
+    }
+  }
+  return report;
 }
 
 function publicUser(u: { id: string; organizationId: string; email: string; name: string; role: string; createdAt: string }) {

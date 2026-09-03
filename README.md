@@ -63,8 +63,11 @@ Concretely:
 The repository ships with a seeded demo. Log in with:
 
 ```
-demo@agentos.dev / demo1234
+admin@agentos.dev / demo1234
 ```
+
+(The login screen pre-fills these. Every account created through **Register**
+gets the same starter portfolio automatically.)
 
 Two agents are pre-built:
 
@@ -76,11 +79,16 @@ Two agents are pre-built:
 Run the Support Agent, watch it pause in `Approvals`, then approve or reject it
 from the UI — the run resumes and completes (or fails closed on rejection).
 
+Deploying to Railway? See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — it covers
+the two-service setup, the volume the SQLite file needs, and a four-command
+diagnostic ladder for "the console is empty and I don't know why".
+
 ---
 
 ## Quickstart
 
-Requires **Node.js ≥ 22.5** (uses the built-in `node:sqlite`).
+Requires **Node.js ≥ 22.13** (uses the built-in `node:sqlite`, which is only
+available without a flag from 22.13 / 23.4 onwards).
 
 ```bash
 npm install

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, fmtUsd, fmtMs, timeAgo } from "@/lib/api";
-import { Badge, Empty, Spinner } from "@/components/ui";
+import { fmtUsd, fmtMs, timeAgo } from "@/lib/api";
+import { useApi } from "@/lib/use-api";
+import { Badge, Empty, ErrorBanner, Spinner } from "@/components/ui";
 
 interface RunSummary {
   id: string;
@@ -18,13 +18,9 @@ interface RunSummary {
 }
 
 export default function Runs() {
-  const [runs, setRuns] = useState<RunSummary[] | null>(null);
+  const { data: runs, error, loading, reload } = useApi<RunSummary[]>("/api/v1/runs");
 
-  useEffect(() => {
-    api<RunSummary[]>("/api/v1/runs").then(setRuns).catch(() => setRuns([]));
-  }, []);
-
-  if (runs === null) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-slate-500">
         <Spinner /> <span className="ml-2">Loading…</span>
@@ -37,9 +33,18 @@ export default function Runs() {
       <h1 className="text-xl font-semibold text-slate-100">Runs</h1>
       <p className="mt-0.5 text-sm text-slate-500">Every agent execution, with cost and status.</p>
 
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+
       <div className="mt-6">
-        {runs.length === 0 ? (
-          <Empty title="No runs yet" body="Run an agent to produce your first execution trace." />
+        {(runs ?? []).length === 0 ? (
+          <Empty
+            title={error ? "Runs unavailable" : "No runs yet"}
+            body={
+              error
+                ? "The API request failed — see the error above."
+                : "Run an agent to produce your first execution trace."
+            }
+          />
         ) : (
           <div className="overflow-hidden rounded-xl border border-base-700">
             <table className="w-full text-sm">
@@ -55,7 +60,7 @@ export default function Runs() {
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r) => (
+                {(runs ?? []).map((r) => (
                   <tr key={r.id} className="border-b border-base-800 last:border-0 hover:bg-base-900/40">
                     <td className="px-4 py-2.5">
                       <Link href={`/runs/${r.id}`} className="mono text-xs text-accent hover:underline">

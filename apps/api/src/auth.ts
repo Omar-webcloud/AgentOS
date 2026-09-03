@@ -41,8 +41,14 @@ export function issueToken(userId: string): string {
 export function verifyToken(token: string): string | null {
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
-  const expected = sign(payload);
-  if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  const expected = Buffer.from(sign(payload));
+  const provided = Buffer.from(sig);
+  // `timingSafeEqual` throws (500) instead of returning false when the buffers
+  // differ in length, which is exactly what a malformed, truncated, or
+  // foreign token produces. A bad token must be a 401 so the console can log
+  // the user out, never a 500.
+  if (provided.length !== expected.length) return null;
+  if (!timingSafeEqual(provided, expected)) return null;
   try {
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString()) as { uid: string; exp: number };
     if (decoded.exp < Date.now()) return null;
