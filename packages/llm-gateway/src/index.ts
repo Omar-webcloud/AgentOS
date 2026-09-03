@@ -130,8 +130,11 @@ export class MockProvider implements LLMProvider {
  * references `openai:...`. Falls back to the mock provider on failure.
  */
 export class OpenAIProvider implements LLMProvider {
-  readonly name = "openai";
-  constructor(private apiKey: string, private baseUrl = "https://api.openai.com/v1") {}
+  constructor(
+    private apiKey: string,
+    private baseUrl = "https://api.openai.com/v1",
+    readonly name: string = "openai",
+  ) {}
 
   async complete(req: LLMRequest): Promise<LLMResponse> {
     const model = req.config.model.replace(/^openai:/, "");
@@ -179,14 +182,33 @@ export class OpenAIProvider implements LLMProvider {
   }
 }
 
-export function createGateway(config: { openaiApiKey?: string; openaiBaseUrl?: string } = {}): {
+export function createGateway(
+  config: {
+    openaiApiKey?: string;
+    openaiBaseUrl?: string;
+    geminiApiKey?: string;
+    grokApiKey?: string;
+  } = {},
+): {
   providers: LLMProvider[];
   complete(req: LLMRequest): Promise<LLMResponse>;
 } {
   const mock = new MockProvider();
   const providers: LLMProvider[] = [mock];
   if (config.openaiApiKey) {
-    providers.push(new OpenAIProvider(config.openaiApiKey, config.openaiBaseUrl));
+    providers.push(new OpenAIProvider(config.openaiApiKey, config.openaiBaseUrl, "openai"));
+  }
+  if (config.geminiApiKey) {
+    providers.push(
+      new OpenAIProvider(
+        config.geminiApiKey,
+        "https://generativelanguage.googleapis.com/v1beta/openai",
+        "gemini",
+      ),
+    );
+  }
+  if (config.grokApiKey) {
+    providers.push(new OpenAIProvider(config.grokApiKey, "https://api.x.ai/v1", "grok"));
   }
   return {
     providers,

@@ -10,10 +10,17 @@ html,
 body {
   padding: 0;
   margin: 0;
-  background: #0a0b0e;
-  color: #e6e8ee;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #0e0c0a;
+  color: #ece7df;
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+.font-serif,
+h1,
+h2,
+.font-serif * {
+  font-family: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
 }
 
 * {
@@ -25,30 +32,26 @@ a {
   text-decoration: none;
 }
 
-/* subtle scrollbars */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2f3a;
+  background: #3a332b;
   border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3f4c;
+  background: #5c5348;
 }
 
-/* thin monospace utilities */
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* grid backdrop for landing hero */
-.grid-bg {
+.paper-grain {
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 42px 42px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 55%, transparent 100%);
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 55%, transparent 100%);
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(208, 138, 58, 0.14), transparent 55%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: auto, 42px 42px, 42px 42px;
 }

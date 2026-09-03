@@ -33,6 +33,7 @@ export function createDb(options: DbOptions = {}): Db {
   }
   const raw = new DatabaseSync(path);
   raw.exec(SCHEMA);
+  migrate(raw);
 
   return {
     path,
@@ -48,4 +49,19 @@ export function createDb(options: DbOptions = {}): Db {
     },
     close: () => raw.close(),
   };
+}
+
+/**
+ * Additive migrations for databases created before Google Sign-In / brains.
+ * `CREATE TABLE IF NOT EXISTS` will not add columns to an existing table.
+ */
+function migrate(raw: DatabaseSync): void {
+  const userCols = new Set(
+    (raw.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map((c) => c.name),
+  );
+  if (!userCols.has("google_id")) raw.exec("ALTER TABLE users ADD COLUMN google_id TEXT");
+  if (!userCols.has("avatar_url")) raw.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT");
+  if (!userCols.has("auth_provider")) {
+    raw.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'password'");
+  }
 }

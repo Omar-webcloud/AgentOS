@@ -25,10 +25,20 @@ export function seed(db: Db): void {
   const cp = new ControlPlane(db);
 
   const existing = cp.getUserByEmail(DEMO_EMAIL);
-  if (existing) return; // already seeded
+  if (existing) {
+    for (const provider of ["chatgpt", "gemini", "grok"] as const) {
+      cp.connectProvider({
+        userId: existing.id,
+        organizationId: existing.organizationId,
+        provider,
+        googleEmail: DEMO_EMAIL,
+      });
+    }
+    return;
+  }
 
   const org = cp.createOrganization("Acme Corp V2");
-  cp.createUser({
+  const demoUser = cp.createUser({
     organizationId: org.id,
     email: DEMO_EMAIL,
     name: "Ada Lovelace",
@@ -38,6 +48,16 @@ export function seed(db: Db): void {
   const project = cp.createProject({ organizationId: org.id, name: "Engineering", environment: "production" });
 
   seedOrganization(cp, db, org.id, project.id);
+
+  // Demo account already has ChatGPT, Gemini, and Grok connected so triggering works immediately.
+  for (const provider of ["chatgpt", "gemini", "grok"] as const) {
+    cp.connectProvider({
+      userId: demoUser.id,
+      organizationId: org.id,
+      provider,
+      googleEmail: DEMO_EMAIL,
+    });
+  }
 }
 
 /**

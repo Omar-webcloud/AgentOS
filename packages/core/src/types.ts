@@ -35,6 +35,11 @@ export type EnvironmentName = "development" | "staging" | "production";
 
 export type Role = "owner" | "admin" | "developer" | "operator" | "viewer";
 
+export type AuthProvider = "password" | "google";
+
+/** The three brains people sign up with (each via their Google account). */
+export type BrainId = "chatgpt" | "gemini" | "grok";
+
 export interface User {
   id: ID;
   organizationId: ID;
@@ -42,7 +47,21 @@ export interface User {
   name: string;
   role: Role;
   passwordHash: string | null;
+  googleId: string | null;
+  avatarUrl: string | null;
+  authProvider: AuthProvider;
   createdAt: string;
+}
+
+export interface ConnectedProvider {
+  id: ID;
+  userId: ID;
+  organizationId: ID;
+  provider: BrainId;
+  googleEmail: string;
+  googleId: string | null;
+  status: "connected" | "disconnected";
+  connectedAt: string;
 }
 
 /** Permission strings such as `agent:create`, `run:read`, `approval:approve`. */

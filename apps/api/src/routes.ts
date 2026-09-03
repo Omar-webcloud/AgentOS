@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Db } from "@agentos/db";
 import type { EnvironmentName } from "@agentos/core";
-import { ROLE_PERMISSIONS, type Permission } from "@agentos/core";
+import { ROLE_PERMISSIONS, isBrainId, type Permission } from "@agentos/core";
 import type { ControlPlane } from "./control-plane.js";
 import type { RuntimeRepository } from "@agentos/runtime";
 import type { AgentRuntime } from "@agentos/runtime";
@@ -82,12 +82,170 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (!user?.passwordHash || !body?.password || !verifyPassword(body.password, user.passwordHash)) {
       return reply.code(401).send({ error: "invalid credentials" });
     }
-    return { token: issueToken(user.id), user: publicUser(user) };
+    return { token: issueToken(user.id), user: publicUser(user), providers: cp.listProviders(user.id) };
+  });
+
+  /**
+   * Sign up / sign in with Google, optionally connecting ChatGPT, Gemini, or Grok
+   * in the same step. When `GOOGLE_CLIENT_ID` is set, an ID token is required and
+   * verified against Google. Otherwise this is a demo Google Sign-In (portfolio).
+   */
+  app.post("/api/v1/auth/google", async (req, reply) => {
+    const body = req.body as {
+      email?: string;
+      name?: string;
+      picture?: string;
+      googleId?: string;
+      idToken?: string;
+      brain?: string;
+    };
+
+    let profile: { email: string; name: string; picture?: string; googleId?: string };
+    try {
+      profile = body.idToken
+        ? await verifyGoogleIdToken(body.idToken)
+        : demoGoogleProfile(body);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Google sign-in failed";
+      return reply.code(401).send({ error: message });
+    }
+    if (!profile) return;
+
+    const brain = isBrainId(body.brain) ? body.brain : undefined;
+    const email = profile.email.toLowerCase();
+
+    let user = cp.getUserByEmail(email);
+    let created = false;
+    if (!user) {
+      const org = cp.createOrganization(`${profile.name}'s Workspace`);
+      const project = cp.createProject({ organizationId: org.id, name: "Agents", environment: "production" });
+      user = cp.createUser({
+        organizationId: org.id,
+        email,
+        name: profile.name,
+        role: "owner",
+        passwordHash: null,
+        googleId: profile.googleId ?? null,
+        avatarUrl: profile.picture ?? null,
+        authProvider: "google",
+      });
+      seedOrganization(cp, deps.db, org.id, project.id);
+      created = true;
+    } else {
+      cp.updateUserGoogle(user.id, {
+        googleId: profile.googleId ?? user.googleId,
+        avatarUrl: profile.picture ?? user.avatarUrl,
+        authProvider: "google",
+        name: user.name || profile.name,
+      });
+      user = cp.getUser(user.id)!;
+    }
+
+    if (brain) {
+      cp.connectProvider({
+        userId: user.id,
+        organizationId: user.organizationId,
+        provider: brain,
+        googleEmail: email,
+        googleId: profile.googleId ?? null,
+      });
+    }
+
+    return {
+      token: issueToken(user.id),
+      user: publicUser(user),
+      created,
+      providers: cp.listProviders(user.id),
+    };
   });
 
   app.get("/api/v1/auth/me", async (req) => {
     const user = requireAuth(req);
-    return publicUser(user);
+    return { ...publicUser(user), providers: cp.listProviders(user.id) };
+  });
+
+  // -- brains (ChatGPT / Gemini / Grok) ------------------------------------
+
+  app.get("/api/v1/providers", async (req) => {
+    const user = requireAuth(req);
+    return cp.listProviders(user.id);
+  });
+
+  app.post("/api/v1/providers", async (req, reply) => {
+    const user = requireAuth(req);
+    const body = req.body as { provider?: string };
+    if (!isBrainId(body?.provider)) {
+      return reply.code(400).send({ error: "provider must be chatgpt, gemini, or grok" });
+    }
+    const connected = cp.connectProvider({
+      userId: user.id,
+      organizationId: user.organizationId,
+      provider: body.provider,
+      googleEmail: user.email,
+      googleId: user.googleId,
+    });
+    return reply.code(201).send(connected);
+  });
+
+  app.delete("/api/v1/providers/:provider", async (req, reply) => {
+    const user = requireAuth(req);
+    const { provider } = req.params as { provider: string };
+    if (!isBrainId(provider)) return reply.code(400).send({ error: "unknown provider" });
+    const ok = cp.disconnectProvider(user.id, provider);
+    if (!ok) return reply.code(404).send({ error: "not connected" });
+    return { ok: true };
+  });
+
+  // -- outline (agents as a triggerable outline) ---------------------------
+
+  app.get("/api/v1/outline", async (req) => {
+    const user = requireAuth(req);
+    const agents = cp.listAgents(user.organizationId);
+    const tools = cp.listTools(user.organizationId);
+    const toolMap = new Map(tools.map((t) => [t.id, t]));
+    const runs = repo.listRuns(user.organizationId, 80);
+    const approvals = repo.listApprovals(user.organizationId).filter((a) => a.status === "PENDING");
+
+    return agents.map((agent) => {
+      const version = agent.currentVersionId ? cp.getVersion(agent.currentVersionId) : undefined;
+      const steps = (version?.toolIds ?? []).map((id, i) => {
+        const t = toolMap.get(id);
+        const raw = t?.name ?? id;
+        return {
+          n: i + 1,
+          title: prettyToolName(raw),
+          tool: raw,
+          detail: t?.description ?? "",
+          risk: t?.risk ?? "READ",
+        };
+      });
+      const last = runs.find((r) => r.agentId === agent.id);
+      return {
+        id: agent.id,
+        name: agent.name,
+        slug: agent.slug,
+        description: agent.description,
+        status: agent.status,
+        steps,
+        lastRun: last
+          ? {
+              id: last.id,
+              status: last.status,
+              createdAt: last.createdAt,
+              brain: typeof last.input?.brain === "string" ? last.input.brain : null,
+            }
+          : null,
+        pendingApprovals: approvals
+          .filter((a) => a.agentId === agent.id)
+          .map((a) => ({
+            id: a.id,
+            action: a.action,
+            riskLevel: a.riskLevel,
+            payload: a.payload,
+            createdAt: a.createdAt,
+          })),
+      };
+    });
   });
 
   // -- agents --------------------------------------------------------------
@@ -179,19 +337,30 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     const { id } = req.params as { id: string };
     const agent = cp.getAgent(id);
     if (!agent || agent.organizationId !== user.organizationId) return reply.code(404).send({ error: "not found" });
-    const body = req.body as { input?: Record<string, unknown>; triggerType?: any };
+    const body = req.body as { input?: Record<string, unknown>; triggerType?: any; brain?: string };
+    const brain = isBrainId(body.brain) ? body.brain : undefined;
+    if (brain) {
+      const connected = cp.listProviders(user.id).some((p) => p.provider === brain && p.status === "connected");
+      if (!connected) {
+        return reply.code(400).send({ error: `Connect ${brain} with Google before triggering` });
+      }
+    }
     const run = await runtime.startRun({
       organizationId: user.organizationId,
       agentId: agent.id,
-      runInput: body.input ?? {},
-    }, { triggerType: body.triggerType ?? "api" });
+      runInput: { ...(body.input ?? {}), ...(brain ? { brain } : {}) },
+    }, { triggerType: body.triggerType ?? "manual" });
     return reply.code(201).send(run);
   });
 
   app.get("/api/v1/runs", async (req) => {
     const user = requireAuth(req);
     const runs = repo.listRuns(user.organizationId, 200);
-    return runs.map((r) => ({ ...r, agentName: cp.getAgent(r.agentId)?.name ?? r.agentId }));
+    return runs.map((r) => ({
+      ...r,
+      agentName: cp.getAgent(r.agentId)?.name ?? r.agentId,
+      brain: typeof r.input?.brain === "string" ? r.input.brain : null,
+    }));
   });
 
   app.get("/api/v1/runs/:id", async (req, reply) => {
@@ -398,6 +567,11 @@ const DIAGNOSTIC_ENV_KEYS = [
   "HUGGINGFACE_HUB_API_TOKEN",
   "OPENAI_API_KEY",
   "OPENAI_BASE_URL",
+  "GEMINI_API_KEY",
+  "GOOGLE_AI_API_KEY",
+  "GROK_API_KEY",
+  "XAI_API_KEY",
+  "GOOGLE_CLIENT_ID",
 ];
 
 const SECRET_ENV_PATTERN = /(SECRET|TOKEN|KEY|PASSWORD)$/i;
@@ -417,10 +591,83 @@ function environmentReport(): Record<string, string> {
   return report;
 }
 
-function publicUser(u: { id: string; organizationId: string; email: string; name: string; role: string; createdAt: string }) {
-  return { id: u.id, organizationId: u.organizationId, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt };
+function publicUser(u: {
+  id: string;
+  organizationId: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+  avatarUrl?: string | null;
+  authProvider?: string;
+}) {
+  return {
+    id: u.id,
+    organizationId: u.organizationId,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    createdAt: u.createdAt,
+    avatarUrl: u.avatarUrl ?? null,
+    authProvider: u.authProvider ?? "password",
+  };
 }
 
 function withCurrentVersion(a: { currentVersionId: string | null }) {
   return a;
+}
+
+function prettyToolName(name: string): string {
+  const last = name.split(".").pop() ?? name;
+  return last.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function demoGoogleProfile(body: {
+  email?: string;
+  name?: string;
+  picture?: string;
+  googleId?: string;
+}): { email: string; name: string; picture?: string; googleId?: string } {
+  if (process.env.GOOGLE_CLIENT_ID) {
+    throw new Error("Google ID token required");
+  }
+  if (!body?.email || !body.email.includes("@")) {
+    throw new Error("email is required");
+  }
+  return {
+    email: body.email,
+    name: body.name?.trim() || body.email.split("@")[0]!,
+    picture: body.picture,
+    googleId: body.googleId,
+  };
+}
+
+async function verifyGoogleIdToken(idToken: string): Promise<{
+  email: string;
+  name: string;
+  picture?: string;
+  googleId?: string;
+}> {
+  const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+  if (!res.ok) throw new Error("invalid Google ID token");
+  const data = (await res.json()) as {
+    aud?: string;
+    email?: string;
+    email_verified?: string | boolean;
+    name?: string;
+    picture?: string;
+    sub?: string;
+  };
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (clientId && data.aud !== clientId) throw new Error("Google token audience mismatch");
+  if (data.email_verified !== "true" && data.email_verified !== true) {
+    throw new Error("Google email is not verified");
+  }
+  if (!data.email) throw new Error("Google token is missing an email");
+  return {
+    email: data.email,
+    name: data.name?.trim() || data.email.split("@")[0]!,
+    picture: data.picture,
+    googleId: data.sub,
+  };
 }
