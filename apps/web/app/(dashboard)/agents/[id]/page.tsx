@@ -40,6 +40,9 @@ export default function AgentDetail({ params }: { params: Promise<{ id: string }
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<{ id: string; status: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [brain, setBrain] = useState<"chatgpt" | "gemini" | "grok">("chatgpt");
+  const { data: providers } = useApi<{ provider: string; status: string }[]>("/api/v1/providers");
+  const connected = new Set((providers ?? []).filter((p) => p.status === "connected").map((p) => p.provider));
 
   async function runAgent() {
     setRunning(true);
@@ -48,7 +51,11 @@ export default function AgentDetail({ params }: { params: Promise<{ id: string }
     try {
       const run = await api<{ id: string; status: string }>(`/api/v1/agents/${id}/runs`, {
         method: "POST",
-        body: JSON.stringify({ input: { repository: "acme/api", pull_request: 182 }, triggerType: "api" }),
+        body: JSON.stringify({
+          input: { repository: "acme/api", pull_request: 182 },
+          triggerType: "manual",
+          brain,
+        }),
       });
       setRunResult(run);
     } catch (err) {
@@ -88,13 +95,27 @@ export default function AgentDetail({ params }: { params: Promise<{ id: string }
           </div>
           <p className="mt-0.5 text-sm text-slate-500">{agent.description || "No description"}</p>
         </div>
-        <button
-          onClick={runAgent}
-          disabled={running}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-dim disabled:opacity-60"
-        >
-          {running ? "Running…" : "Run agent"}
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={brain}
+            onChange={(e) => setBrain(e.target.value as typeof brain)}
+            className="rounded-lg border border-base-600 bg-base-950 px-2 py-2 text-sm text-slate-200 outline-none"
+          >
+            {(["chatgpt", "gemini", "grok"] as const).map((b) => (
+              <option key={b} value={b} disabled={!connected.has(b)}>
+                {b === "chatgpt" ? "ChatGPT" : b === "gemini" ? "Gemini" : "Grok"}
+                {!connected.has(b) ? " (connect)" : ""}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={runAgent}
+            disabled={running || !connected.has(brain)}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-dim disabled:opacity-60"
+          >
+            {running ? "Triggering…" : "Trigger"}
+          </button>
+        </div>
       </div>
 
       {runResult && (

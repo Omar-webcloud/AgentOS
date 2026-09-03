@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   role TEXT NOT NULL,
   password_hash TEXT,
+  google_id TEXT,
+  avatar_url TEXT,
+  auth_provider TEXT NOT NULL DEFAULT 'password',
   created_at TEXT NOT NULL
 );
 
@@ -174,6 +177,18 @@ CREATE TABLE IF NOT EXISTS eval_results (
   cost_usd REAL NOT NULL,
   notes TEXT NOT NULL,
   created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS connected_providers (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  organization_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  google_email TEXT NOT NULL,
+  google_id TEXT,
+  status TEXT NOT NULL DEFAULT 'connected',
+  connected_at TEXT NOT NULL,
+  UNIQUE(user_id, provider)
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (

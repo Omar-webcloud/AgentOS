@@ -30,8 +30,8 @@ export default function Runs() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-100">Runs</h1>
-      <p className="mt-0.5 text-sm text-slate-500">Every agent execution, with cost and status.</p>
+      <h1 className="font-serif text-3xl text-paper">Triggers</h1>
+      <p className="mt-0.5 text-sm text-slate-500">Every time you fired an agent from the outline.</p>
 
       {error && <ErrorBanner message={error} onRetry={reload} />}
 

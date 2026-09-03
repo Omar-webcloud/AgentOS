@@ -20,25 +20,37 @@ const HOST = process.env.HOST ?? "0.0.0.0";
  * `api-inference.huggingface.co` host is decommissioned, so the router is the
  * default when an HF key is used.
  */
-function resolveLLMConfig(): { openaiApiKey?: string; openaiBaseUrl?: string } {
+function resolveLLMConfig(): {
+  openaiApiKey?: string;
+  openaiBaseUrl?: string;
+  geminiApiKey?: string;
+  grokApiKey?: string;
+} {
   const hfApiKey =
     process.env.HUGGINGFACE_API_KEY ??
     process.env.HF_TOKEN ??
     process.env.HUGGINGFACE_HUB_API_TOKEN;
 
+  const geminiApiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
+  const grokApiKey = process.env.GROK_API_KEY ?? process.env.XAI_API_KEY;
+
+  const config: {
+    openaiApiKey?: string;
+    openaiBaseUrl?: string;
+    geminiApiKey?: string;
+    grokApiKey?: string;
+  } = {};
+
   if (process.env.OPENAI_API_KEY) {
-    return {
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
-    };
+    config.openaiApiKey = process.env.OPENAI_API_KEY;
+    config.openaiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
+  } else if (hfApiKey) {
+    config.openaiApiKey = hfApiKey;
+    config.openaiBaseUrl = process.env.OPENAI_BASE_URL ?? "https://router.huggingface.co/v1";
   }
-  if (hfApiKey) {
-    return {
-      openaiApiKey: hfApiKey,
-      openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://router.huggingface.co/v1",
-    };
-  }
-  return {};
+  if (geminiApiKey) config.geminiApiKey = geminiApiKey;
+  if (grokApiKey) config.grokApiKey = grokApiKey;
+  return config;
 }
 
 const db = createDb();

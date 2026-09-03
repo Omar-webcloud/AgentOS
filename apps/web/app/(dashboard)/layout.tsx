@@ -29,17 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-base-950">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-6 py-6">
-          <div className="mb-4">
-            <button
-              onClick={() => router.back()}
-              className="text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              ← Back
-            </button>
-          </div>
-          {children}
-        </div>
+        <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
       </main>
     </div>
   );

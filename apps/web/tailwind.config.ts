@@ -6,19 +6,27 @@ const config: Config = {
     extend: {
       colors: {
         base: {
-          950: "#0a0b0e",
-          900: "#101216",
-          850: "#16181e",
-          800: "#1b1e26",
-          700: "#262a34",
-          600: "#3a3f4c",
+          950: "#0e0c0a",
+          900: "#161310",
+          850: "#1c1915",
+          800: "#241f1a",
+          700: "#3a332b",
+          600: "#5c5348",
+        },
+        paper: "#f3ead8",
+        ink: "#1a1510",
+        copper: {
+          DEFAULT: "#d08a3a",
+          dim: "#b5752e",
         },
         accent: {
-          DEFAULT: "#6c7bff",
-          dim: "#525ec4",
+          DEFAULT: "#d08a3a",
+          dim: "#b5752e",
         },
       },
       fontFamily: {
+        serif: ["Fraunces", "Iowan Old Style", "Palatino", "Georgia", "serif"],
+        sans: ["DM Sans", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       keyframes: {

@@ -4,6 +4,7 @@ import type {
   Approval,
   EnvironmentName,
   ID,
+  ModelConfig,
   Run,
   ToolDefinition,
 } from "@agentos/core";
@@ -235,7 +236,7 @@ export class AgentRuntime {
         const response = await this.deps.gateway.complete({
           messages,
           tools: toolSpecs,
-          config: version.modelConfig,
+          config: applyBrain(version.modelConfig, run.input?.brain),
         });
 
         budget.tokenUsage += response.usage.promptTokens + response.usage.completionTokens;
@@ -495,6 +496,20 @@ export class AgentRuntime {
 }
 
 // ---------------------------------------------------------------------------
+
+/** Map a trigger-time brain (ChatGPT / Gemini / Grok) onto the version's model config. */
+function applyBrain(base: ModelConfig, brain: unknown): ModelConfig {
+  switch (brain) {
+    case "chatgpt":
+      return { ...base, provider: "openai", model: "gpt-4o" };
+    case "gemini":
+      return { ...base, provider: "gemini", model: "gemini-2.0-flash" };
+    case "grok":
+      return { ...base, provider: "grok", model: "grok-3-latest" };
+    default:
+      return base;
+  }
+}
 
 function buildSystemPrompt(version: AgentVersion, run: Run): string {
   return [

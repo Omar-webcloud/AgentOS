@@ -2,6 +2,8 @@ import type { Db } from "@agentos/db";
 import type {
   Agent,
   AgentVersion,
+  BrainId,
+  ConnectedProvider,
   EnvironmentName,
   ID,
   ModelConfig,
@@ -48,7 +50,16 @@ export class ControlPlane {
 
   // -- users ---------------------------------------------------------------
 
-  createUser(input: { organizationId: ID; email: string; name: string; role: User["role"]; passwordHash: string | null }): User {
+  createUser(input: {
+    organizationId: ID;
+    email: string;
+    name: string;
+    role: User["role"];
+    passwordHash: string | null;
+    googleId?: string | null;
+    avatarUrl?: string | null;
+    authProvider?: User["authProvider"];
+  }): User {
     const user: User = {
       id: makeId("user"),
       organizationId: input.organizationId,
@@ -56,12 +67,54 @@ export class ControlPlane {
       name: input.name,
       role: input.role,
       passwordHash: input.passwordHash,
+      googleId: input.googleId ?? null,
+      avatarUrl: input.avatarUrl ?? null,
+      authProvider: input.authProvider ?? (input.googleId ? "google" : "password"),
       createdAt: nowIso(),
     };
     this.db
-      .prepare(`INSERT INTO users (id, organization_id, email, name, role, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(user.id, user.organizationId, user.email, user.name, user.role, user.passwordHash, user.createdAt);
+      .prepare(
+        `INSERT INTO users (id, organization_id, email, name, role, password_hash, google_id, avatar_url, auth_provider, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        user.id,
+        user.organizationId,
+        user.email,
+        user.name,
+        user.role,
+        user.passwordHash,
+        user.googleId,
+        user.avatarUrl,
+        user.authProvider,
+        user.createdAt,
+      );
     return user;
+  }
+
+  updateUserGoogle(id: ID, patch: { googleId?: string | null; avatarUrl?: string | null; authProvider?: User["authProvider"]; name?: string }): User | undefined {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    if (patch.googleId !== undefined) {
+      sets.push("google_id = ?");
+      values.push(patch.googleId);
+    }
+    if (patch.avatarUrl !== undefined) {
+      sets.push("avatar_url = ?");
+      values.push(patch.avatarUrl);
+    }
+    if (patch.authProvider !== undefined) {
+      sets.push("auth_provider = ?");
+      values.push(patch.authProvider);
+    }
+    if (patch.name !== undefined) {
+      sets.push("name = ?");
+      values.push(patch.name);
+    }
+    if (sets.length === 0) return this.getUser(id);
+    values.push(id);
+    this.db.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+    return this.getUser(id);
   }
 
   getUser(id: ID): User | undefined {
@@ -135,7 +188,7 @@ export class ControlPlane {
   }
 
   listAgents(organizationId: ID): Agent[] {
-    const rows = this.db.prepare<Record<string, unknown>>(`SELECT * FROM agents WHERE organization_id = ? ORDER BY created_at DESC`).all(organizationId);
+    const rows = this.db.prepare<Record<string, unknown>>(`SELECT * FROM agents WHERE organization_id = ? ORDER BY created_at ASC`).all(organizationId);
     return rows.map(mapAgent);
   }
 
@@ -229,6 +282,59 @@ export class ControlPlane {
   recordToolUsage(id: ID, ok: boolean): void {
     this.db.prepare(`UPDATE tools SET usage_count = usage_count + 1, success_count = success_count + ? WHERE id = ?`).run(ok ? 1 : 0, id);
   }
+
+  // -- connected brains (ChatGPT / Gemini / Grok via Google) ---------------
+
+  connectProvider(input: {
+    userId: ID;
+    organizationId: ID;
+    provider: BrainId;
+    googleEmail: string;
+    googleId?: string | null;
+  }): ConnectedProvider {
+    const existing = this.db
+      .prepare<Record<string, unknown>>(`SELECT * FROM connected_providers WHERE user_id = ? AND provider = ?`)
+      .get(input.userId, input.provider);
+    if (existing) {
+      this.db
+        .prepare(
+          `UPDATE connected_providers SET status = 'connected', google_email = ?, google_id = ?, connected_at = ? WHERE id = ?`,
+        )
+        .run(input.googleEmail.toLowerCase(), input.googleId ?? null, nowIso(), existing.id);
+      return mapProvider(this.db.prepare<Record<string, unknown>>(`SELECT * FROM connected_providers WHERE id = ?`).get(existing.id as string)!);
+    }
+    const row: ConnectedProvider = {
+      id: makeId("prov"),
+      userId: input.userId,
+      organizationId: input.organizationId,
+      provider: input.provider,
+      googleEmail: input.googleEmail.toLowerCase(),
+      googleId: input.googleId ?? null,
+      status: "connected",
+      connectedAt: nowIso(),
+    };
+    this.db
+      .prepare(
+        `INSERT INTO connected_providers (id, user_id, organization_id, provider, google_email, google_id, status, connected_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'connected', ?)`,
+      )
+      .run(row.id, row.userId, row.organizationId, row.provider, row.googleEmail, row.googleId, row.connectedAt);
+    return row;
+  }
+
+  listProviders(userId: ID): ConnectedProvider[] {
+    const rows = this.db
+      .prepare<Record<string, unknown>>(`SELECT * FROM connected_providers WHERE user_id = ? ORDER BY connected_at ASC`)
+      .all(userId);
+    return rows.map(mapProvider);
+  }
+
+  disconnectProvider(userId: ID, provider: BrainId): boolean {
+    const result = this.db
+      .prepare(`DELETE FROM connected_providers WHERE user_id = ? AND provider = ?`)
+      .run(userId, provider);
+    return Number(result.changes) > 0;
+  }
 }
 
 // --- mappers ---------------------------------------------------------------
@@ -241,7 +347,23 @@ function mapUser(r: Record<string, unknown>): User {
     name: r.name as string,
     role: r.role as User["role"],
     passwordHash: (r.password_hash as string | null) ?? null,
+    googleId: (r.google_id as string | null) ?? null,
+    avatarUrl: (r.avatar_url as string | null) ?? null,
+    authProvider: ((r.auth_provider as User["authProvider"] | null) ?? "password") as User["authProvider"],
     createdAt: r.created_at as string,
+  };
+}
+
+function mapProvider(r: Record<string, unknown>): ConnectedProvider {
+  return {
+    id: r.id as ID,
+    userId: r.user_id as ID,
+    organizationId: r.organization_id as ID,
+    provider: r.provider as BrainId,
+    googleEmail: r.google_email as string,
+    googleId: (r.google_id as string | null) ?? null,
+    status: (r.status as ConnectedProvider["status"]) ?? "connected",
+    connectedAt: r.connected_at as string,
   };
 }
 
