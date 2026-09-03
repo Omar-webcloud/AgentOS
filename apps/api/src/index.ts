@@ -77,6 +77,7 @@ registerRoutes(app, {
   runtime,
   environment: (process.env.ENVIRONMENT as any) ?? "production",
   providers: gateway.providers.map((p) => p.name),
+  databasePath: db.path,
 });
 
 app.listen({ port: PORT, host: HOST }).then((addr) => {

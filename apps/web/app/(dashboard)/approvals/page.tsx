@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { api, fmtDateTime } from "@/lib/api";
-import { Badge, Empty, Spinner } from "@/components/ui";
+import { useApi } from "@/lib/use-api";
+import { Badge, Empty, ErrorBanner, Spinner } from "@/components/ui";
 
 interface Approval {
   id: string;
@@ -18,20 +19,14 @@ interface Approval {
 }
 
 export default function Approvals() {
-  const [approvals, setApprovals] = useState<Approval[] | null>(null);
+  const { data: approvals, error, loading, reload } = useApi<Approval[]>("/api/v1/approvals");
   const [busy, setBusy] = useState<string | null>(null);
-
-  function load() {
-    api<Approval[]>("/api/v1/approvals").then(setApprovals).catch(() => setApprovals([]));
-  }
-
-  useEffect(load, []);
 
   async function decide(id: string, decision: "approve" | "reject") {
     setBusy(id);
     try {
       await api(`/api/v1/approvals/${id}/${decision}`, { method: "POST", body: JSON.stringify({}) });
-      load();
+      reload();
     } catch {
       /* ignore */
     } finally {
@@ -39,7 +34,7 @@ export default function Approvals() {
     }
   }
 
-  if (approvals === null) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-slate-500">
         <Spinner /> <span className="ml-2">Loading…</span>
@@ -52,11 +47,20 @@ export default function Approvals() {
       <h1 className="text-xl font-semibold text-slate-100">Approvals</h1>
       <p className="mt-0.5 text-sm text-slate-500">Human-in-the-loop decisions for high-risk actions.</p>
 
+      {error && <ErrorBanner message={error} onRetry={reload} />}
+
       <div className="mt-6 space-y-3">
-        {approvals.length === 0 ? (
-          <Empty title="No approvals" body="When an agent attempts a high-risk action, it appears here for review." />
+        {(approvals ?? []).length === 0 ? (
+          <Empty
+            title={error ? "Approvals unavailable" : "No approvals"}
+            body={
+              error
+                ? "The API request failed — see the error above."
+                : "When an agent attempts a high-risk action, it appears here for review."
+            }
+          />
         ) : (
-          approvals.map((a) => (
+          (approvals ?? []).map((a) => (
             <div key={a.id} className="rounded-xl border border-base-700 bg-base-900/70 p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge status={a.riskLevel} />

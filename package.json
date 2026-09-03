@@ -17,7 +17,7 @@
     "test": "npm run test -w @agentos/runtime"
   },
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.13.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

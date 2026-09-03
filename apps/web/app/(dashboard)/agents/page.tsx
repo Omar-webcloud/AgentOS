@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { Badge, Empty, Spinner } from "@/components/ui";
+import { useApi } from "@/lib/use-api";
+import { Badge, Empty, ErrorBanner, Spinner } from "@/components/ui";
 
 interface Agent {
   id: string;
@@ -15,26 +16,38 @@ interface Agent {
 }
 
 export default function Agents() {
-  const [agents, setAgents] = useState<Agent[] | null>(null);
+  const { data: agents, error: loadError, loading, reload } = useApi<Agent[]>("/api/v1/agents");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
-  const load = useCallback(() => {
+  function load() {
     setError(null);
-    api<Agent[]>("/api/v1/agents")
-      .then(setAgents)
-      .catch((err) => {
-        // Surface the real reason instead of rendering an empty list: a failed
-        // request and an organization with no agents look identical otherwise.
-        setAgents([]);
-        setError(err instanceof Error ? err.message : "Could not load agents");
-      });
-  }, []);
+    reload();
+  }
 
-  useEffect(load, [load]);
+  /**
+   * Recovers an organization that ended up with no agents (created by an older
+   * build, or a failed seed). The endpoint is a no-op once agents exist.
+   */
+  async function seedStarterPortfolio() {
+    setSeeding(true);
+    setError(null);
+    try {
+      await api<{ agents: number; tools: number }>("/api/v1/organization/seed", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not seed the starter portfolio");
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +61,7 @@ export default function Agents() {
       setName("");
       setDescription("");
       setCreating(false);
-      load();
+      reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create agent");
     } finally {
@@ -56,7 +69,7 @@ export default function Agents() {
     }
   }
 
-  if (agents === null) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-slate-500">
         <Spinner /> <span className="ml-2">Loading…</span>
@@ -106,28 +119,37 @@ export default function Agents() {
         </form>
       )}
 
-      {error && (
-        <div className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-          {error}
-          <button onClick={load} className="ml-3 underline underline-offset-2">
-            Retry
-          </button>
-        </div>
+      {(loadError || error) && (
+        <ErrorBanner
+          message={loadError ?? error ?? "Could not load agents"}
+          onRetry={loadError ? reload : undefined}
+        />
       )}
 
       <div className="mt-6">
-        {agents.length === 0 ? (
+        {(agents ?? []).length === 0 ? (
           <Empty
-            title={error ? "Agents unavailable" : "No agents yet"}
+            title={loadError ? "Agents unavailable" : "No agents yet"}
             body={
-              error
+              loadError
                 ? "The API request failed — see the error above."
-                : "Create your first autonomous worker."
+                : "Create your first autonomous worker, or load the starter portfolio (Code Reviewer + Support Agent, with tools and policies)."
+            }
+            cta={
+              loadError ? undefined : (
+                <button
+                  onClick={seedStarterPortfolio}
+                  disabled={seeding}
+                  className="rounded-lg border border-base-600 px-3.5 py-2 text-sm font-medium text-slate-200 hover:bg-base-800 disabled:opacity-60"
+                >
+                  {seeding ? "Seeding…" : "Seed starter agents"}
+                </button>
+              )
             }
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {agents.map((a) => (
+            {(agents ?? []).map((a) => (
               <Link key={a.id} href={`/agents/${a.id}`} className="rounded-xl border border-base-700 bg-base-900/70 p-5 transition-colors hover:border-accent/50">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-100">{a.name}</span>

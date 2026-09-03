@@ -26,10 +26,26 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
   }
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    // Non-JSON error body (HTML error page, proxy 502, …): keep the status and
+    // show a snippet instead of crashing the whole page.
+    data = null;
+  }
 
   if (!res.ok) {
-    throw new ApiError(data?.error ?? `Request failed (${res.status})`, res.status);
+    const body = data && typeof data === "object" ? data : null;
+    // The reverse proxy returns `{ error, message, hint }` when the API is
+    // unreachable — surface all of it, otherwise the failure looks like an
+    // empty list.
+    const detail =
+      (typeof body?.message === "string" ? body.message : null) ??
+      (typeof body?.error === "string" ? body.error : null) ??
+      (text ? `Request failed (${res.status}): ${text.slice(0, 200)}` : `Request failed (${res.status})`);
+    const hint = typeof body?.hint === "string" ? body.hint : null;
+    throw new ApiError(hint ? `${detail} ${hint}` : detail, res.status);
   }
   return data as T;
 }

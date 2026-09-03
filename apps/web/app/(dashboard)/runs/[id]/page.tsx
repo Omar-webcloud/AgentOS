@@ -1,9 +1,10 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
-import { api, fmtUsd, fmtMs, fmtDateTime } from "@/lib/api";
-import { Badge, Card, CodeBlock, Spinner } from "@/components/ui";
+import { fmtUsd, fmtMs, fmtDateTime } from "@/lib/api";
+import { useApi } from "@/lib/use-api";
+import { Badge, Card, CodeBlock, ErrorBanner, Spinner } from "@/components/ui";
 
 interface Step {
   id: string;
@@ -65,20 +66,23 @@ const STEP_ICON: Record<string, string> = {
 
 export default function RunDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [run, setRun] = useState<RunDetail | null>(null);
-  const [toolMap, setToolMap] = useState<Record<string, string>>({});
+  const { data: run, error: loadError, loading, reload } = useApi<RunDetail>(`/api/v1/runs/${id}`);
+  const { data: tools } = useApi<{ id: string; name: string }[]>("/api/v1/tools");
+  const toolMap: Record<string, string> = Object.fromEntries((tools ?? []).map((t) => [t.id, t.name]));
 
-  useEffect(() => {
-    api<RunDetail>(`/api/v1/runs/${id}`).then(setRun).catch(() => {});
-    api<{ id: string; name: string }[]>("/api/v1/tools")
-      .then((tools) => setToolMap(Object.fromEntries(tools.map((t) => [t.id, t.name]))))
-      .catch(() => {});
-  }, [id]);
-
-  if (!run) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-slate-500">
         <Spinner /> <span className="ml-2">Loading run…</span>
+      </div>
+    );
+  }
+
+  if (!run) {
+    return (
+      <div>
+        <h1 className="text-xl font-semibold text-slate-100">Run</h1>
+        <ErrorBanner message={loadError ?? "Run not found"} onRetry={reload} />
       </div>
     );
   }

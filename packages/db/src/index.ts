@@ -9,6 +9,8 @@ export interface DbOptions {
 }
 
 export interface Db {
+  /** Resolved database location — the file path, or `:memory:`. */
+  path: string;
   raw: DatabaseSync;
   exec(sql: string): void;
   prepare<T>(sql: string): {
@@ -33,6 +35,7 @@ export function createDb(options: DbOptions = {}): Db {
   raw.exec(SCHEMA);
 
   return {
+    path,
     raw,
     exec: (sql: string) => raw.exec(sql),
     prepare: <T>(sql: string) => {

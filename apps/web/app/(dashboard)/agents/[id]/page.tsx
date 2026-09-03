@@ -1,9 +1,10 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { api, fmtUsd, timeAgo } from "@/lib/api";
-import { Badge, Card, CodeBlock, Spinner } from "@/components/ui";
+import { useApi } from "@/lib/use-api";
+import { Badge, Card, CodeBlock, ErrorBanner, Spinner } from "@/components/ui";
 
 interface Version {
   id: string;
@@ -34,16 +35,11 @@ interface Tool {
 
 export default function AgentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [agent, setAgent] = useState<AgentDetail | null>(null);
-  const [tools, setTools] = useState<Tool[]>([]);
+  const { data: agent, error: loadError, loading, reload } = useApi<AgentDetail>(`/api/v1/agents/${id}`);
+  const { data: tools } = useApi<Tool[]>("/api/v1/tools");
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<{ id: string; status: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<AgentDetail>(`/api/v1/agents/${id}`).then(setAgent).catch(() => {});
-    api<Tool[]>("/api/v1/tools").then(setTools).catch(() => {});
-  }, [id]);
 
   async function runAgent() {
     setRunning(true);
@@ -62,10 +58,20 @@ export default function AgentDetail({ params }: { params: Promise<{ id: string }
     }
   }
 
-  if (!agent) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-slate-500">
         <Spinner /> <span className="ml-2">Loading…</span>
+      </div>
+    );
+  }
+
+  // A failed request (or a 404) used to leave this page on the spinner forever.
+  if (!agent) {
+    return (
+      <div>
+        <h1 className="text-xl font-semibold text-slate-100">Agent</h1>
+        <ErrorBanner message={loadError ?? "Agent not found"} onRetry={reload} />
       </div>
     );
   }
@@ -152,7 +158,7 @@ export default function AgentDetail({ params }: { params: Promise<{ id: string }
           {version && version.toolIds.length > 0 ? (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {version.toolIds.map((tid) => {
-                const tool = tools.find((t) => t.id === tid);
+                const tool = tools?.find((t) => t.id === tid);
                 return (
                   <div key={tid} className="flex items-center justify-between rounded-lg border border-base-700 bg-base-850 px-3 py-2">
                     <div className="min-w-0">
