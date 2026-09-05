@@ -267,7 +267,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       "OUTPUT: Structured findings with severity, file, line, explanation, recommendation.",
       'MOCK_SCRIPT: ' + JSON.stringify(reviewerScript),
     ].join("\n"),
-    modelConfig: { model: "openai:meta-llama/Meta-Llama-3-8B-Instruct", provider: "openai", temperature: 0, maxTokens: 4096 },
+    modelConfig: { model: "openai:gpt-4o", provider: "openai", temperature: 0, maxTokens: 4096 },
     runtimeConfig: defaultRuntimeConfig(),
     toolIds: [tools.github_get_pr!.id, tools.github_get_diff!.id, tools.github_create_comment!.id, tools.github_merge_pr!.id],
     policyConfig: [
@@ -302,7 +302,7 @@ export function seedOrganization(cp: ControlPlane, db: Db, orgId: string, projec
       "CONSTRAINTS: Refunds above $500 require human approval. Never invent refund amounts.",
       'MOCK_SCRIPT: ' + JSON.stringify(supportScript),
     ].join("\n"),
-    modelConfig: { model: "openai:meta-llama/Meta-Llama-3-8B-Instruct", provider: "openai", temperature: 0, maxTokens: 4096 },
+    modelConfig: { model: "gemini:gemini-1.5-pro", provider: "gemini", temperature: 0, maxTokens: 4096 },
     runtimeConfig: defaultRuntimeConfig(),
     toolIds: [tools.database_query!.id, tools.stripe_refund!.id],
     policyConfig: [

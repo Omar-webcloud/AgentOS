@@ -137,7 +137,7 @@ export class OpenAIProvider implements LLMProvider {
   ) {}
 
   async complete(req: LLMRequest): Promise<LLMResponse> {
-    const model = req.config.model.replace(/^openai:/, "");
+    const model = req.config.model.replace(/^(openai|gemini|grok):/, "");
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
