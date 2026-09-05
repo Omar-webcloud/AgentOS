@@ -75,7 +75,7 @@ export function AuthScreen({ intent = "signin" }: { intent?: "signin" | "signup"
           </div>
 
           <div className="mt-4">
-            <ContinueWithGoogle onClick={() => setPicker({ open: true, brain: null })} />
+            <ContinueWithGoogle brain={null} />
           </div>
 
           <button

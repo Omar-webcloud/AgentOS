@@ -7,6 +7,8 @@ export const metadata: Metadata = {
     "Sign up with ChatGPT, Gemini, or Grok using your Google account. Trigger the tasks. That's the whole product.",
 };
 
+import { Providers } from "@/components/google-provider";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -18,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

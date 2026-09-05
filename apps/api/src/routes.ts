@@ -100,11 +100,13 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       brain?: string;
     };
 
+    if (!body.idToken) {
+      return reply.code(401).send({ error: "Google ID token required" });
+    }
+
     let profile: { email: string; name: string; picture?: string; googleId?: string };
     try {
-      profile = body.idToken
-        ? await verifyGoogleIdToken(body.idToken)
-        : demoGoogleProfile(body);
+      profile = await verifyGoogleIdToken(body.idToken);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Google sign-in failed";
       return reply.code(401).send({ error: message });
@@ -622,25 +624,6 @@ function prettyToolName(name: string): string {
   return last.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function demoGoogleProfile(body: {
-  email?: string;
-  name?: string;
-  picture?: string;
-  googleId?: string;
-}): { email: string; name: string; picture?: string; googleId?: string } {
-  if (process.env.GOOGLE_CLIENT_ID) {
-    throw new Error("Google ID token required");
-  }
-  if (!body?.email || !body.email.includes("@")) {
-    throw new Error("email is required");
-  }
-  return {
-    email: body.email,
-    name: body.name?.trim() || body.email.split("@")[0]!,
-    picture: body.picture,
-    googleId: body.googleId,
-  };
-}
 
 async function verifyGoogleIdToken(idToken: string): Promise<{
   email: string;
