@@ -81,6 +81,25 @@ Packages under `packages/`: `core`, `db`, `llm-gateway`, `policy-engine`,
 - **Storage:** SQLite (`node:sqlite`)
 - **Models:** ChatGPT, Gemini, Grok (mock fallback)
 
+## Portfolio app
+
+`apps/portfolio` is a standalone Next.js site — Mohammad Omar's personal
+portfolio — built on the design language of
+[chanhdai.com](https://chanhdai.com): one bordered column, full-bleed hairlines,
+hatched section separators, monospace micro-labels, `Fig. n.` captions and a
+light/dark zinc palette.
+
+```bash
+npm install
+npm run dev:portfolio   # http://localhost:3100
+```
+
+| Where | What |
+| --- | --- |
+| `apps/portfolio/lib/data.ts` | All content: profile, skills, experience, education, certifications, 13 projects, articles |
+| `apps/portfolio/components/` | Sections — profile header, overview, GitHub contributions, stack, experience, work, writing, contact |
+| `apps/portfolio/app/globals.css` | Design tokens (OKLCH zinc, light + dark) and the panel/stripe/spotlight utilities |
+
 ## License
 
 Private portfolio project.
