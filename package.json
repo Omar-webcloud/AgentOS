@@ -10,8 +10,10 @@
   "scripts": {
     "dev:api": "npm run dev -w @agentos/api",
     "dev:web": "npm run dev -w @agentos/web",
+    "dev:portfolio": "npm run dev -w @agentos/portfolio",
     "dev": "npm run dev:api & npm run dev:web",
     "build": "npm run build -w @agentos/web",
+    "build:portfolio": "npm run build -w @agentos/portfolio",
     "typecheck": "npm run typecheck -w @agentos/core && npm run typecheck -w @agentos/db && npm run typecheck -w @agentos/policy-engine && npm run typecheck -w @agentos/llm-gateway && npm run typecheck -w @agentos/tool-runtime && npm run typecheck -w @agentos/runtime && npm run typecheck -w @agentos/api",
     "seed": "npm run seed -w @agentos/api",
     "test": "npm run test -w @agentos/runtime"
